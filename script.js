@@ -10,6 +10,8 @@ let seaweeds = [];
 // rocks + bubbles
 let rocks = [];
 let bubbles = [];
+// coral
+let corals = [];
 
 // show JS errors on the canvas so we can debug when the page is white
 function showErrorOnCanvas(msg) {
@@ -64,11 +66,28 @@ function generateRocks() {
     }
 }
 
+function generateCoral() {
+    corals = [];
+    const count = Math.max(8, Math.floor(canvas.width / 80));
+    for (let i = 0; i < count; i++) {
+        const x = Math.random() * canvas.width;
+        const y = canvas.height + 30; // start slightly below screen
+        const depth = Math.random() * 0.5; // only front to mid depth (0 to 0.5)
+        const height = 60 + Math.random() * 280; // much taller variation
+        const width = 20 + Math.random() * 50;
+        const hue = 5 + Math.random() * 30; // orange/red hues for coral
+        const branchiness = 2 + Math.floor(Math.random() * 4); // number of branches
+        const type = Math.random() < 0.5 ? 'ribbon' : 'branching'; // alternate coral types
+        corals.push({ x, y, depth, height, width, hue, branchiness, type });
+    }
+}
+
 function resize() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
     generateSeaweed();
     generateRocks();
+    generateCoral();
 }
 resize();
 window.addEventListener('resize', resize);
@@ -190,6 +209,109 @@ function drawSeaweeds() {
     }
 }
 
+function drawCoralBranch(baseX, baseY, height, width, hue, depth, branchDepth = 0) {
+    const baseY_val = baseY;
+    const seg = 6;
+    
+    // build center points for this branch
+    const points = [];
+    for (let j = 0; j <= seg; j++) {
+        const t = j / seg;
+        const y = baseY_val - t * height;
+        const offset = Math.sin(t * Math.PI * 2) * width * 0.15 * (1 - Math.pow(t, 1.1));
+        const x = baseX + offset;
+        points.push({ x, y });
+    }
+
+    // create a filled ribbon
+    const left = [];
+    const right = [];
+    for (let j = 0; j < points.length; j++) {
+        const p = points[j];
+        const next = points[Math.min(j + 1, points.length - 1)];
+        const prev = points[Math.max(j - 1, 0)];
+        const dx = next.x - prev.x;
+        const dy = next.y - prev.y;
+        const len = Math.hypot(dx, dy) || 1;
+        const nx = -dy / len;
+        const ny = dx / len;
+        const half = width * 0.5 * (1 - j / points.length) * (1 - branchDepth * 0.4);
+        left.push({ x: p.x + nx * half, y: p.y + ny * half });
+        right.push({ x: p.x - nx * half, y: p.y - ny * half });
+    }
+
+    // draw filled shape
+    ctx.save();
+    const lightness = 55 - depth * 35;
+    const saturation = 80 - depth * 20;
+    ctx.fillStyle = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+    ctx.beginPath();
+    ctx.moveTo(left[0].x, left[0].y);
+    for (let k = 1; k < left.length; k++) ctx.lineTo(left[k].x, left[k].y);
+    for (let k = right.length - 1; k >= 0; k--) ctx.lineTo(right[k].x, right[k].y);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+
+    // return the tip position for branches
+    return { x: points[points.length - 1].x, y: points[points.length - 1].y };
+}
+
+function drawCoral() {
+    for (let i = 0; i < corals.length; i++) {
+        const c = corals[i];
+        
+        if (c.type === 'branching') {
+            drawBranchingCoral(c);
+        } else {
+            // draw main stem only (ribbon style)
+            const tip = drawCoralBranch(c.x, c.y, c.height, c.width, c.hue, c.depth, 0);
+        }
+    }
+}
+
+function drawBranchingCoral(c) {
+    ctx.save();
+    
+    const lightness = 55 - c.depth * 35;
+    const saturation = 80 - c.depth * 20;
+    ctx.fillStyle = `hsl(${c.hue}, ${saturation}%, ${lightness}%)`;
+    
+    // draw stacked rocks/boulders
+    let currentY = c.y;
+    const rockCount = 4 + Math.floor(c.height / 60);
+    
+    for (let r = 0; r < rockCount; r++) {
+        const t = r / rockCount; // progress along height
+        const currentHeight = c.height * t;
+        
+        // rock gets slightly narrower toward top
+        const rockWidth = c.width * (1 - t * 0.4);
+        const rockHeight = c.height / rockCount * 1.2;
+        
+        // slight horizontal wobble for natural look
+        const wobble = Math.sin(r * 1.5) * c.width * 0.15;
+        const rockX = c.x + wobble;
+        const rockY = c.y - currentHeight;
+        
+        // draw bulbous rock shape using ellipse
+        ctx.beginPath();
+        ctx.ellipse(rockX, rockY, rockWidth * 0.6, rockHeight * 0.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // add darker shading on bottom for depth
+        ctx.fillStyle = `hsl(${c.hue}, ${saturation}%, ${Math.max(20, lightness - 15)}%)`;
+        ctx.beginPath();
+        ctx.ellipse(rockX, rockY + rockHeight * 0.3, rockWidth * 0.5, rockHeight * 0.3, 0, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // restore color for next rock
+        ctx.fillStyle = `hsl(${c.hue}, ${saturation}%, ${lightness}%)`;
+    }
+    
+    ctx.restore();
+}
+
 function spawnBubbleFromRock(r) {
     // spawn near rock top with slight horizontal jitter
     const opts = arguments[1] || {};
@@ -215,6 +337,8 @@ function updateBubbles() {
         }
     }
 }
+
+
 
 function drawRocks() {
     for (let i = 0; i < rocks.length; i++) {
@@ -284,6 +408,8 @@ function update() {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     // draw background seaweed
     drawSeaweeds();
+    // draw coral
+    drawCoral();
 
     // update and draw rocks + bubbles
     updateBubbles();
