@@ -1,4 +1,4 @@
-// Jumping Fish script (moved from main.html)
+// Fish tank script (moved from main.html)
 'use strict';
 
 const canvas = document.getElementById('canvas');
@@ -7,6 +7,9 @@ console.log('jumping_fish script loaded');
 
 // seaweed array must be declared before generateSeaweed() is called
 let seaweeds = [];
+// rocks + bubbles
+let rocks = [];
+let bubbles = [];
 
 // show JS errors on the canvas so we can debug when the page is white
 function showErrorOnCanvas(msg) {
@@ -45,10 +48,27 @@ function generateSeaweed() {
     }
 }
 
+function generateRocks() {
+    rocks = [];
+    const count = 3;
+    const margin = 60;
+    for (let i = 0; i < count; i++) {
+        const x = margin + Math.random() * (canvas.width - margin * 2);
+        const width = 60 + Math.random() * 80;
+        const height = 30 + Math.random() * 30;
+        const y = canvas.height - (height * 0.5) - 6; // slightly above bottom
+        // shorter interval for more continuous bubbling; also store a small continuous chance
+        const bubbleInterval = 8 + Math.floor(Math.random() * 24); // frames between bursts
+        const continuousChance = 0.08 + Math.random() * 0.18; // per-frame small bubble chance
+        rocks.push({ x, y, width, height, bubbleTimer: 0, bubbleInterval, continuousChance });
+    }
+}
+
 function resize() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
     generateSeaweed();
+    generateRocks();
 }
 resize();
 window.addEventListener('resize', resize);
@@ -170,6 +190,90 @@ function drawSeaweeds() {
     }
 }
 
+function spawnBubbleFromRock(r) {
+    // spawn near rock top with slight horizontal jitter
+    const opts = arguments[1] || {};
+    const bx = r.x + (Math.random() - 0.5) * (r.width * 0.4) + (opts.dx || 0);
+    const by = r.y - r.height * 0.5 - 6 + (opts.dy || 0);
+    const radius = opts.radius ?? (1.5 + Math.random() * 6);
+    const vx = opts.vx ?? ((Math.random() - 0.5) * (0.6 + Math.random() * 0.6));
+    const vy = opts.vy ?? - (0.6 + Math.random() * 2.0);
+    const life = opts.life ?? (60 + Math.random() * 160); // frames
+    bubbles.push({ x: bx, y: by, vx, vy, r: radius, alpha: 0.95, life, age: 0 });
+}
+
+function updateBubbles() {
+    for (let i = bubbles.length - 1; i >= 0; i--) {
+        const b = bubbles[i];
+        b.x += b.vx;
+        b.y += b.vy;
+        b.age++;
+        // drift outwards slightly as they approach the top
+        b.alpha = Math.max(0, 0.9 * (1 - b.age / b.life));
+        if (b.y + b.r < 0 || b.age > b.life || b.alpha <= 0) {
+            bubbles.splice(i, 1);
+        }
+    }
+}
+
+function drawRocks() {
+    for (let i = 0; i < rocks.length; i++) {
+        const r = rocks[i];
+        // rock shadow / body
+        const grd = ctx.createLinearGradient(r.x, r.y - r.height, r.x, r.y + r.height);
+        grd.addColorStop(0, '#6b6b4f');
+        grd.addColorStop(1, '#3d3d2b');
+        ctx.save();
+        ctx.beginPath();
+        ctx.ellipse(r.x, r.y, r.width * 0.6, r.height * 0.9, 0, 0, Math.PI * 2);
+        ctx.fillStyle = grd;
+        ctx.fill();
+        // small lighter speckles
+        ctx.fillStyle = 'rgba(255,255,255,0.06)';
+        ctx.beginPath();
+        ctx.ellipse(r.x - r.width * 0.15, r.y - r.height * 0.2, r.width * 0.18, r.height * 0.12, -0.3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+
+        // update rock bubble timer and spawn bursts
+        r.bubbleTimer++;
+        if (r.bubbleTimer >= r.bubbleInterval) {
+            // spawn a small burst (2-5 bubbles)
+            const toSpawn = 2 + Math.floor(Math.random() * 4);
+            for (let k = 0; k < toSpawn; k++) {
+                spawnBubbleFromRock(r, { radius: 2 + Math.random() * 6, vy: - (1 + Math.random() * 2) });
+            }
+            r.bubbleTimer = 0;
+            // keep interval modest so bursts happen regularly
+            r.bubbleInterval = 10 + Math.floor(Math.random() * 40);
+        }
+
+        // continuous small bubbles: per-frame small chance
+        if (Math.random() < r.continuousChance) {
+            spawnBubbleFromRock(r, { radius: 1 + Math.random() * 3, vy: - (0.8 + Math.random() * 1.2) });
+        }
+    }
+}
+
+function drawBubbles() {
+    for (let i = 0; i < bubbles.length; i++) {
+        const b = bubbles[i];
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, b.alpha);
+        // soft glow
+        ctx.fillStyle = 'rgba(220,245,255,0.9)';
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+        ctx.fill();
+        // highlight
+        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+        ctx.beginPath();
+        ctx.arc(b.x - b.r * 0.35, b.y - b.r * 0.35, Math.max(1, b.r * 0.5), 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    }
+}
+
 function update() {
     // paint a vertical blue gradient background each frame
     const grd = ctx.createLinearGradient(0, 0, 0, canvas.height);
@@ -180,6 +284,11 @@ function update() {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     // draw background seaweed
     drawSeaweeds();
+
+    // update and draw rocks + bubbles
+    updateBubbles();
+    drawRocks();
+    drawBubbles();
 
     // update and draw all fishes
     for (let i = 0; i < fishes.length; i++) {
