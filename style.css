@@ -1,4 +1,4 @@
-/* Styles for Jumping Fish demo */
+/* Styles for Fish Tank demo */
 html,body{height:100%;}
-body{margin:0;font-family:Calibri;background:transparent}
+body{margin:0;font-family:sans-serif;background:transparent}
 canvas{display:block; width:100%; height:100%;}
