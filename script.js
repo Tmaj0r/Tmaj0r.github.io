@@ -418,7 +418,7 @@ canvas.addEventListener('click', (e) => {
     // pick a random hue for variety, use HSL so we can vary lightness/saturation if desired
     const hue = Math.floor(Math.random() * 360);
     const color = `hsl(${hue},70%,55%)`; // HSL for variety in fish colors
-    if (clickCount % 10 === 0) {
+    if (clickCount % 7 === 0) {
         // spawn dolphin
         dolphins.push({
             x: e.clientX,
