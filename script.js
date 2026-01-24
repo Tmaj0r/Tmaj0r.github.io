@@ -11,6 +11,8 @@ let bubbles = [];
 let fishes = [];
 let corals = [];
 let rocks = [];
+let dolphins = [];
+let clickCount = 0;
 
 function drawFish(f) {
     const { x, y, size, tailPhase, vx, color } = f;
@@ -54,6 +56,69 @@ function drawFish(f) {
 
     ctx.restore();
 }
+
+function drawDolphin(f) {
+    const { x, y, size, tailPhase, vx, color } = f;
+    ctx.save();
+    ctx.translate(x, y);
+
+    const facingLeft = vx < 0;
+    if (facingLeft) ctx.scale(-1, 1);
+
+    // body
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, size * 1.5, size * 0.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // dorsal fin
+    ctx.beginPath();
+    ctx.moveTo(-size * 0.2, -size * 0.5);
+    ctx.lineTo(0, -size * 0.8);
+    ctx.lineTo(size * 0.2, -size * 0.5);
+    ctx.closePath();
+    ctx.fill();
+
+    // pectoral fin
+    ctx.beginPath();
+    ctx.moveTo(size * 0.3, size * 0.1);
+    ctx.lineTo(size * 0.6, size * 0.3);
+    ctx.lineTo(size * 0.3, size * 0.5);
+    ctx.closePath();
+    ctx.fill();
+
+    // rostrum
+    ctx.beginPath();
+    ctx.ellipse(size * 1.6, 0, size * 0.3, size * 0.15, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // tail
+    const tailWag = Math.sin(tailPhase) * 0.2;
+    ctx.save();
+    ctx.translate(-size * 1.5, 0);
+    ctx.rotate(tailWag);
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(-size * 0.8, -size * 0.3);
+    ctx.lineTo(-size * 0.8, size * 0.3);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+
+    // eye
+    ctx.fillStyle = 'white';
+    ctx.beginPath();
+    ctx.arc(size * 1.2, -size * 0.2, size * 0.15, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'black';
+    ctx.beginPath();
+    ctx.arc(size * 1.25, -size * 0.2, size * 0.07, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+}
+
+
 
 function generateSeaweed() {
     seaweeds = [];
@@ -346,22 +411,37 @@ function drawBubbles() {
 }
 // add a click listener to spawn new fishes
 canvas.addEventListener('click', (e) => {
+    clickCount++;
     // spawn a new fish at the click position
     const size = 16 + Math.random() * 36; // 16..52
     const speed = (Math.random() > 0.5 ? 1 : -1) * (1.2 + Math.random() * 1.8);
     // pick a random hue for variety, use HSL so we can vary lightness/saturation if desired
     const hue = Math.floor(Math.random() * 360);
     const color = `hsl(${hue},70%,55%)`; // HSL for variety in fish colors
-    fishes.push({
-        x: e.clientX,
-        baseY: e.clientY,
-        y: e.clientY,
-        size: size,
-        vx: speed,
-        time: Math.random() * Math.PI * 2,
-        tailPhase: Math.random() * Math.PI * 2,
-        color: color
-    });
+    if (clickCount % 10 === 0) {
+        // spawn dolphin
+        dolphins.push({
+            x: e.clientX,
+            baseY: e.clientY,
+            y: e.clientY,
+            size: size,
+            vx: speed,
+            time: Math.random() * Math.PI * 2,
+            tailPhase: Math.random() * Math.PI * 2,
+            color: color
+        });
+    } else {
+        fishes.push({
+            x: e.clientX,
+            baseY: e.clientY,
+            y: e.clientY,
+            size: size,
+            vx: speed,
+            time: Math.random() * Math.PI * 2,
+            tailPhase: Math.random() * Math.PI * 2,
+            color: color
+        });
+    }
 });
 
 // resize the canvas to fit the window size
@@ -393,6 +473,24 @@ function update() {
     drawRocks();
     drawBubbles();
 
+     for (let i = 0; i < dolphins.length; i++) {
+        const f = dolphins[i];
+        f.time += 0.03;
+        f.tailPhase += 0.5;
+
+        // horizontal motion
+        f.x += f.vx;
+
+        // jumping motion (dolphins jump out of water periodically)
+        const jumpAmplitude = Math.max(10, f.size * 0.4);
+        f.y = f.baseY - Math.max(0, Math.sin(f.time)) * jumpAmplitude;
+
+        // wrap around horizontally
+        if (f.x - f.size > canvas.width) f.x = -f.size;
+        if (f.x + f.size < 0) f.x = canvas.width + f.size;
+
+        drawDolphin(f);
+    }
     // update and draw all fishes
     for (let i = 0; i < fishes.length; i++) {
         const f = fishes[i];
@@ -413,6 +511,7 @@ function update() {
         drawFish(f);
     }
 
+   
     requestAnimationFrame(update);
 }
 update();
